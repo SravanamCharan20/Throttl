@@ -7,7 +7,7 @@ const router = express.Router();
 router.post('/check', async (req, res) => {
   const {
     clientId,
-    algorithm = 'sliding-window-log',
+    algorithm,
     limit = defaultLimit,
     windowSeconds = defaultWindowSeconds,
   } = req.body;
