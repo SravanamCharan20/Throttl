@@ -26,7 +26,7 @@ Open [http://localhost:3000](http://localhost:3000). By default it talks to a Th
 `http://localhost:8888` — start the backend from [`../backend`](../backend) first, or point
 `NEXT_PUBLIC_THROTTL_API_URL` in `.env.local` at wherever it's running.
 
-The app checks `GET /health` before showing the demo, and shows a "waking up" state if the
+The app checks `GET /uptime` before showing the demo, and shows a "waking up" state if the
 backend is slow to respond (useful for free-tier hosts that spin down when idle).
 
 ## Environment variables

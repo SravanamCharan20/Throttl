@@ -7,9 +7,14 @@ import checkRoute from "./routes/check.js";
 
 const app = express();
 app.use(express.json());
+const allowedOrigins = [
+  "https://throttl-flax.vercel.app",
+  "http://localhost:3000",
+];
+
 app.use(
   cors({
-    origin: "https://throttl-flax.vercel.app",
+    origin: allowedOrigins,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
@@ -18,7 +23,7 @@ app.use(
 const PORT = process.env.PORT || 8888;
 app.use("/", checkRoute);
 
-app.get("/health", (req, res) => {
+app.get("/uptime", (req, res) => {
   res.json({ status: "ok" });
 });
 

@@ -6,7 +6,7 @@ services:
     plan: free
     buildCommand: npm install
     startCommand: node index.js
-    healthCheckPath: /health
+    healthCheckPath: /uptime
     envVars:
       - key: REDIS_URL
         sync: false

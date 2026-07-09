@@ -1,8 +1,9 @@
 # Throttl
 
+A distributed API rate limiter built from scratch — four rate-limiting algorithms, one shared Redis, one clean interface for swapping between them at request time.
+
 **Live demo:** [throttl-flax.vercel.app](https://throttl-flax.vercel.app/)
 
-A distributed API rate limiter built from scratch — four rate-limiting algorithms, one shared Redis, one clean interface for swapping between them at request time.
 
 ## Why this exists
 
@@ -78,9 +79,9 @@ Missing `clientId` or an unrecognized `algorithm` returns `400`:
 { "error": "clientId is required" }
 ```
 
-### `GET /health`
+### `GET /uptime`
 
-Returns `{ "status": "ok" }`. Used by the frontend to detect whether the backend is awake before showing the demo (free-tier hosts spin down after inactivity).
+Returns `{ "status": "ok" }`. Used by the frontend to detect whether the backend is awake before showing the demo (free-tier hosts spin down after inactivity). Named `/uptime` rather than `/health` because some ad blockers and privacy extensions block generic `/health`-style endpoints, mistaking them for analytics beacons.
 
 ## Tech stack
 
@@ -137,7 +138,7 @@ Open `http://localhost:3000` for the demo; the backend runs on `http://localhost
 
 ## Deployment
 
-**Backend → Render.** A `render.yaml` blueprint is included at the repo root (`rootDir: backend`) — use Render's "New Blueprint" flow and point it at this repo. It installs with `npm install`, starts with `node index.js`, health-checks against `/health`, and prompts for `REDIS_URL` (not stored in the blueprint). Render sets `PORT` automatically.
+**Backend → Render.** A `render.yaml` blueprint is included at the repo root (`rootDir: backend`) — use Render's "New Blueprint" flow and point it at this repo. It installs with `npm install`, starts with `node index.js`, health-checks against `/uptime`, and prompts for `REDIS_URL` (not stored in the blueprint). Render sets `PORT` automatically.
 
 **Frontend → Vercel.** Since this is a monorepo: set **Root Directory** to `frontend`, add `NEXT_PUBLIC_THROTTL_API_URL` under Environment Variables pointing at the deployed Render URL, and deploy — no other configuration needed.
 

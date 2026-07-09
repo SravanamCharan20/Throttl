@@ -11,7 +11,7 @@ function isErrorPayload(payload: unknown): payload is ApiErrorResponse {
 
 export async function checkHealth(): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE_URL}/health`, { cache: "no-store" });
+    const res = await fetch(`${API_BASE_URL}/uptime`, { cache: "no-store" });
     if (!res.ok) return false;
     const data: unknown = await res.json().catch(() => null);
     return (

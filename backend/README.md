@@ -34,9 +34,11 @@ denied). Missing `clientId` or an unrecognized `algorithm` returns `400`:
 { "error": "clientId is required" }
 ```
 
-### `GET /health`
+### `GET /uptime`
 
 Returns `{ "status": "ok" }`. Used by the frontend to detect whether the backend is awake.
+(Named `/uptime` rather than `/health` because some ad blockers and privacy extensions treat
+generic `/health` endpoints as analytics/telemetry beacons and silently block them.)
 
 ## Running locally
 
@@ -55,7 +57,7 @@ A `render.yaml` blueprint is included at the repo root (`rootDir: backend`), so 
 Render's "New Blueprint" flow and point it at this repo. It will:
 
 - Install with `npm install` and start with `node index.js`
-- Health-check against `/health`
+- Health-check against `/uptime`
 - Prompt you to set `REDIS_URL` (not stored in the blueprint)
 
 Render sets `PORT` automatically — the app already reads `process.env.PORT`.

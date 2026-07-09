@@ -62,7 +62,9 @@ export default function BackendGate({ children }: { children: React.ReactNode })
               <code className="rounded bg-white/5 px-1.5 py-0.5 text-xs text-slate-300">
                 {API_BASE_URL}
               </code>
-              . Make sure the Throttl backend is running and reachable.
+              . Make sure the Throttl backend is running and reachable. If you have an ad blocker
+              or privacy extension enabled, try disabling it for this site — it can sometimes
+              block requests like this one.
             </p>
             <button
               onClick={() => {
