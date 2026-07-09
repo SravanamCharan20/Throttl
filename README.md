@@ -1,7 +1,6 @@
 # Throttl
 
 **Live demo:** [throttl-flax.vercel.app](https://throttl-flax.vercel.app/)
-**Backend API:** `https://<your-render-service>.onrender.com` — swap in your actual Render URL once deployed
 
 A distributed API rate limiter built from scratch — four rate-limiting algorithms, one shared Redis, one clean interface for swapping between them at request time.
 
