@@ -1,4 +1,5 @@
 import type { LogEntry } from "@/lib/types";
+import { estimateLeakyBucketLevel } from "@/lib/bucketMath";
 
 interface LeakyBucketVisualizerProps {
   entries: LogEntry[];
@@ -13,21 +14,7 @@ export default function LeakyBucketVisualizer({
   windowSeconds,
   now,
 }: LeakyBucketVisualizerProps) {
-  const leakRatePerMs = limit / (windowSeconds * 1000);
-
-  const latestAllowed = entries
-    .filter((e) => e.result.ok && e.result.data.allowed && typeof e.result.data.queuePosition === "number")
-    .reduce<LogEntry | undefined>((acc, e) => (!acc || e.sentAt > acc.sentAt ? e : acc), undefined);
-
-  let baseLevel = 0;
-  let baseTime = now;
-  if (latestAllowed && latestAllowed.result.ok) {
-    baseLevel = (latestAllowed.result.data.queuePosition ?? 0) + 1;
-    baseTime = latestAllowed.sentAt;
-  }
-
-  const elapsed = Math.max(0, now - baseTime);
-  const level = Math.max(0, baseLevel - elapsed * leakRatePerMs);
+  const level = estimateLeakyBucketLevel(entries, limit, windowSeconds, now);
   const pct = limit > 0 ? Math.min(100, (level / limit) * 100) : 0;
 
   const pending = entries
@@ -71,12 +58,12 @@ export default function LeakyBucketVisualizer({
           </div>
         ) : (
           <ul className="space-y-1.5">
-            {pending.map((e) => (
+            {pending.map((e, i) => (
               <li
                 key={e.id}
                 className="flex items-center justify-between rounded-lg bg-white/[0.03] px-3 py-2.5 text-sm"
               >
-                <span className="text-slate-300">position #{e.queuePosition}</span>
+                <span className="text-slate-300">{i === 0 ? "Next up" : `#${i + 1} in line`}</span>
                 <span className="font-mono text-slate-500">
                   {Math.max(0, Math.ceil((e.estimatedProcessAt - now) / 1000))}s
                 </span>

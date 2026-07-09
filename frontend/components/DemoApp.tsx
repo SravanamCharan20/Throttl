@@ -108,7 +108,15 @@ export default function DemoApp() {
                   sendingBurst={sendingBurst}
                 />
 
-                <StatusBanner latest={latestForAlgorithm} algorithmName={meta.name} now={now} />
+                <StatusBanner
+                  latest={latestForAlgorithm}
+                  algorithm={algorithm}
+                  algorithmName={meta.name}
+                  entries={algoEntries}
+                  limit={limit}
+                  windowSeconds={windowSeconds}
+                  now={now}
+                />
 
                 <section className="rounded-2xl bg-white/[0.03] p-6 sm:p-8">
                   <div className="mb-6 flex items-center gap-2">

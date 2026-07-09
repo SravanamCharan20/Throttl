@@ -1,4 +1,5 @@
 import type { LogEntry } from "@/lib/types";
+import { estimateTokenBucketTokens } from "@/lib/bucketMath";
 
 interface TokenBucketVisualizerProps {
   entries: LogEntry[];
@@ -14,20 +15,7 @@ export default function TokenBucketVisualizer({
   now,
 }: TokenBucketVisualizerProps) {
   const refillRatePerMs = limit / (windowSeconds * 1000);
-
-  const latest = entries
-    .filter((e) => e.result.ok)
-    .reduce<LogEntry | undefined>((acc, e) => (!acc || e.sentAt > acc.sentAt ? e : acc), undefined);
-
-  let baseTokens = limit;
-  let baseTime = now;
-  if (latest && latest.result.ok) {
-    baseTokens = latest.result.data.remaining;
-    baseTime = latest.sentAt;
-  }
-
-  const elapsed = Math.max(0, now - baseTime);
-  const tokens = Math.min(limit, baseTokens + elapsed * refillRatePerMs);
+  const tokens = estimateTokenBucketTokens(entries, limit, windowSeconds, now);
   const pct = limit > 0 ? Math.min(100, (tokens / limit) * 100) : 0;
   const refillPerSecond = refillRatePerMs * 1000;
 
