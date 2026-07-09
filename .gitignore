@@ -1,2 +1,15 @@
-/node_modules
-.env
+node_modules/
+.env*
+!.env.example
+
+# next.js (frontend/)
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# vercel
+.vercel
+
+# misc
+.DS_Store

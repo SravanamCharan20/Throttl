@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: throttl-backend
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm install
+    startCommand: node index.js
+    healthCheckPath: /health
+    envVars:
+      - key: REDIS_URL
+        sync: false
