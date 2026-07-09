@@ -1,12 +1,13 @@
-import SlidingWindowLog from './slidingWindowLog.js';
-import SlidingWindowCounter from './slidingWindowCounter.js';
-import TokenBucket from './tokenBucket.js';
-
+import SlidingWindowLog from "./slidingWindowLog.js";
+import SlidingWindowCounter from "./slidingWindowCounter.js";
+import TokenBucket from "./tokenBucket.js";
+import LeakyBucket from "./leakyBucket.js";
 
 const strategies = {
-  'sliding-window-log': new SlidingWindowLog(),
-  'sliding-window-counter': new SlidingWindowCounter(),
-  'token-bucket': new TokenBucket(),
+  "sliding-window-log": new SlidingWindowLog(),
+  "sliding-window-counter": new SlidingWindowCounter(),
+  "token-bucket": new TokenBucket(),
+  "leaky-bucket": new LeakyBucket(),
 };
 
 export function getStrategy(name) {
