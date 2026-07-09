@@ -1,4 +1,4 @@
-import { ALGORITHMS } from "@/lib/algorithms";
+import { ALGORITHMS, algorithmMeta } from "@/lib/algorithms";
 import type { Algorithm } from "@/lib/types";
 
 interface AlgorithmSelectorProps {
@@ -7,35 +7,32 @@ interface AlgorithmSelectorProps {
 }
 
 export default function AlgorithmSelector({ selected, onSelect }: AlgorithmSelectorProps) {
+  const selectedMeta = algorithmMeta(selected);
+
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      {ALGORITHMS.map((algo) => {
-        const isActive = algo.id === selected;
-        return (
-          <button
-            key={algo.id}
-            onClick={() => onSelect(algo.id)}
-            aria-pressed={isActive}
-            className={`rounded-xl border px-4 py-4 text-left transition ${
-              isActive
-                ? `${algo.accent.border} ${algo.accent.bg}`
-                : "border-slate-800 bg-slate-900/40 hover:border-slate-700"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <span className={`h-2 w-2 rounded-full ${algo.accent.dot}`} />
-              <span
-                className={`text-sm font-semibold ${
-                  isActive ? algo.accent.text : "text-slate-200"
-                }`}
-              >
-                {algo.name}
-              </span>
-            </div>
-            <p className="mt-2 text-xs leading-relaxed text-slate-400">{algo.tagline}</p>
-          </button>
-        );
-      })}
+    <div className="space-y-2.5">
+      <div className="flex rounded-xl bg-white/[0.03] p-1">
+        {ALGORITHMS.map((algo) => {
+          const isActive = algo.id === selected;
+          return (
+            <button
+              key={algo.id}
+              onClick={() => onSelect(algo.id)}
+              aria-pressed={isActive}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
+                isActive
+                  ? "bg-white/[0.09] text-white shadow-sm"
+                  : "text-slate-500 hover:text-slate-300"
+              }`}
+            >
+              <span className={`h-2 w-2 shrink-0 rounded-full ${algo.dot}`} />
+              <span className="hidden sm:inline">{algo.name}</span>
+              <span className="sm:hidden">{algo.shortName}</span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="px-1 text-sm text-slate-500">{selectedMeta.tagline}</p>
     </div>
   );
 }

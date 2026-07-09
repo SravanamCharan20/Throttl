@@ -44,17 +44,19 @@ export default function LeakyBucketVisualizer({
   return (
     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
       <div className="space-y-3">
-        <div className="flex items-center justify-between text-xs text-slate-400">
+        <div className="flex items-center justify-between text-sm text-slate-400">
           <span>Bucket level</span>
           <span className="font-mono text-slate-300">
             {level.toFixed(2)} / {limit}
           </span>
         </div>
-        <div className="relative mx-auto h-40 w-28 overflow-hidden rounded-b-2xl rounded-t-md border border-slate-700 bg-slate-950/60">
+        <div className="relative mx-auto h-40 w-28 overflow-hidden rounded-[1.5rem] bg-white/[0.03]">
           <div
-            className="absolute bottom-0 left-0 w-full bg-emerald-500/70 transition-all duration-200 ease-linear"
+            className="absolute bottom-0 left-0 w-full rounded-t-md bg-gradient-to-t from-emerald-500 to-emerald-300 shadow-[0_0_18px_rgba(52,211,153,0.35)] transition-all duration-200 ease-linear"
             style={{ height: `${pct}%` }}
-          />
+          >
+            <div className="h-1.5 w-full rounded-full bg-white/40 blur-[2px]" />
+          </div>
         </div>
         <p className="text-center text-xs text-slate-500">
           rises 1 per accepted request, drains at a constant, paced rate
@@ -62,9 +64,9 @@ export default function LeakyBucketVisualizer({
       </div>
 
       <div className="space-y-2">
-        <p className="text-xs text-slate-400">Processing queue</p>
+        <p className="text-sm text-slate-400">Processing queue</p>
         {pending.length === 0 ? (
-          <div className="rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-4 text-center text-xs text-slate-600">
+          <div className="rounded-xl bg-white/[0.03] px-3 py-4 text-center text-xs text-slate-600">
             Nothing pending right now.
           </div>
         ) : (
@@ -72,7 +74,7 @@ export default function LeakyBucketVisualizer({
             {pending.map((e) => (
               <li
                 key={e.id}
-                className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs"
+                className="flex items-center justify-between rounded-lg bg-white/[0.03] px-3 py-2.5 text-sm"
               >
                 <span className="text-slate-300">position #{e.queuePosition}</span>
                 <span className="font-mono text-slate-500">

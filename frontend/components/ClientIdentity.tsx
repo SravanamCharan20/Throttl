@@ -5,18 +5,16 @@ interface ClientIdentityProps {
 
 export default function ClientIdentity({ clientId, onRotate }: ClientIdentityProps) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm">
-      <div className="min-w-0">
-        <span className="text-slate-500">Requesting as</span>{" "}
-        <code className="rounded bg-slate-800 px-1.5 py-0.5 text-xs text-slate-200">
-          {clientId}
-        </code>
-      </div>
+    <div className="flex items-center gap-2 text-sm text-slate-500">
+      <span>Requesting as</span>
+      <code className="rounded bg-white/[0.06] px-2 py-0.5 text-sm text-slate-300">
+        {clientId}
+      </code>
       <button
         onClick={onRotate}
-        className="shrink-0 text-xs font-medium text-sky-400 transition hover:text-sky-300"
+        className="text-sm text-indigo-400 transition hover:text-indigo-300"
       >
-        New client
+        new client
       </button>
     </div>
   );

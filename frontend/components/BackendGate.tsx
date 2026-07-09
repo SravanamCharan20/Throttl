@@ -49,19 +49,17 @@ export default function BackendGate({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="flex min-h-[70vh] items-center justify-center px-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/60 p-8 text-center shadow-xl">
+    <div className="flex items-center justify-center py-16">
+      <div className="w-full max-w-sm rounded-2xl bg-white/[0.03] p-7 text-center">
         {state === "unreachable" ? (
           <>
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 text-2xl">
+            <div className="mx-auto mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-rose-500/10 text-sm text-rose-300">
               !
             </div>
-            <h2 className="text-lg font-semibold text-slate-100">
-              Can&apos;t reach SkyCheck
-            </h2>
-            <p className="mt-2 text-sm text-slate-400">
+            <h2 className="text-base font-semibold text-slate-100">Can&apos;t reach SkyCheck</h2>
+            <p className="mt-2 text-sm text-slate-500">
               No response from{" "}
-              <code className="rounded bg-slate-800 px-1.5 py-0.5 text-xs text-slate-300">
+              <code className="rounded bg-white/5 px-1.5 py-0.5 text-xs text-slate-300">
                 {API_BASE_URL}
               </code>
               . Make sure the Throttl backend is running and reachable.
@@ -71,18 +69,18 @@ export default function BackendGate({ children }: { children: React.ReactNode })
                 setState("checking");
                 setRetryToken((n) => n + 1);
               }}
-              className="mt-6 rounded-lg bg-sky-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-400"
+              className="mt-4 rounded-lg bg-gradient-to-b from-indigo-400 to-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm shadow-indigo-950/50 transition hover:brightness-110"
             >
               Retry
             </button>
           </>
         ) : (
           <>
-            <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-sky-400" />
-            <h2 className="text-lg font-semibold text-slate-100">
-              {state === "waking" ? "Waking up the server..." : "Connecting to SkyCheck..."}
+            <div className="mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-2 border-white/10 border-t-indigo-400" />
+            <h2 className="text-base font-semibold text-slate-100">
+              {state === "waking" ? "Waking up the server…" : "Connecting to SkyCheck…"}
             </h2>
-            <p className="mt-2 text-sm text-slate-400">
+            <p className="mt-2 text-sm text-slate-500">
               {state === "waking"
                 ? "The backend may be asleep after a period of inactivity. This can take up to 30 seconds."
                 : "Checking whether the rate limiter is awake."}

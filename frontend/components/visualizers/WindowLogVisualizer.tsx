@@ -32,35 +32,36 @@ export default function WindowLogVisualizer({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between text-xs text-slate-400">
+      <div className="flex items-center justify-between text-sm text-slate-400">
         <span>Trailing {windowSeconds}s window</span>
         <span className="font-mono text-slate-300">
           {occupied} / {limit} occupied
         </span>
       </div>
 
-      <div className="relative h-16 rounded-lg border border-slate-800 bg-slate-950/60">
+      <div className="relative h-20 rounded-xl bg-white/[0.03]">
         {visible.map(({ entry, allowed, age, lifetime }) => {
           const pct = Math.min(100, Math.max(0, ((entry.sentAt - cutoff) / windowMs) * 100));
           const fraction = lifetime > 0 ? age / lifetime : 1;
-          const opacity = Math.max(0.15, 1 - fraction * 0.8);
+          const opacity = Math.max(0.2, 1 - fraction * 0.75);
+          const glow = allowed ? "rgba(56,189,248,0.65)" : "rgba(244,63,94,0.65)";
           return (
             <div
               key={entry.id}
               className={`absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ${
                 allowed ? "bg-sky-400" : "bg-rose-500"
               }`}
-              style={{ left: `${pct}%`, opacity }}
+              style={{ left: `${pct}%`, opacity, boxShadow: `0 0 10px 1px ${glow}` }}
               title={`${allowed ? "Allowed" : "Denied"} at ${new Date(
                 entry.sentAt,
               ).toLocaleTimeString()}`}
             />
           );
         })}
-        <div className="absolute right-0 top-0 h-full w-px bg-sky-500/60" />
+        <div className="absolute right-0 top-0 h-full w-px bg-gradient-to-b from-sky-400/60 via-sky-400/20 to-transparent" />
       </div>
 
-      <div className="flex justify-between text-[11px] text-slate-600">
+      <div className="flex justify-between text-xs text-slate-600">
         <span>-{windowSeconds}s</span>
         <span>now</span>
       </div>

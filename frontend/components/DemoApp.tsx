@@ -10,8 +10,7 @@ import BackendGate from "./BackendGate";
 import ScenarioIntro from "./ScenarioIntro";
 import ClientIdentity from "./ClientIdentity";
 import AlgorithmSelector from "./AlgorithmSelector";
-import ConfigPanel from "./ConfigPanel";
-import ActionBar from "./ActionBar";
+import ControlToolbar from "./ControlToolbar";
 import StatusBanner from "./StatusBanner";
 import RequestLog from "./RequestLog";
 import VisualizerPanel from "./visualizers/VisualizerPanel";
@@ -75,65 +74,71 @@ export default function DemoApp() {
   const latestForAlgorithm = algoEntries[0];
 
   return (
-    <div className="mx-auto flex min-w-0 max-w-5xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
-      <ScenarioIntro />
-
-      <BackendGate>
-        {clientId === null || now === null ? (
-          <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-6 text-center text-sm text-slate-500">
-            Setting up your session...
-          </div>
-        ) : (
-          <div className="flex min-w-0 flex-col gap-6">
-            <ClientIdentity clientId={clientId} onRotate={rotateClientId} />
-
-            <section className="space-y-3">
-              <h2 className="text-sm font-medium text-slate-300">
-                Choose a rate-limiting strategy
-              </h2>
-              <AlgorithmSelector selected={algorithm} onSelect={setAlgorithm} />
-            </section>
-
-            <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <ConfigPanel
-                limit={limit}
-                windowSeconds={windowSeconds}
-                onLimitChange={setLimit}
-                onWindowSecondsChange={setWindowSeconds}
-              />
-              <ActionBar
-                burstCount={burstCount}
-                onBurstCountChange={setBurstCount}
-                onSendOne={sendOne}
-                onSendBurst={sendBurst}
-                sendingOne={sendingOne}
-                sendingBurst={sendingBurst}
-              />
-            </section>
-
-            <StatusBanner latest={latestForAlgorithm} algorithmName={meta.name} now={now} />
-
-            <section className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/30 p-5">
-              <div className="flex items-center gap-2">
-                <span className={`h-2 w-2 rounded-full ${meta.accent.dot}`} />
-                <h2 className="text-sm font-medium text-slate-200">{meta.name} — live state</h2>
+    <div className="flex h-screen flex-col overflow-hidden text-slate-200 lg:flex-row">
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center gap-6 px-5 py-8 sm:px-8 lg:px-10">
+          <div>
+            <ScenarioIntro />
+            {clientId && (
+              <div className="mt-3">
+                <ClientIdentity clientId={clientId} onRotate={rotateClientId} />
               </div>
-              <VisualizerPanel
-                algorithm={algorithm}
-                entries={algoEntries}
-                limit={limit}
-                windowSeconds={windowSeconds}
-                now={now}
-              />
-            </section>
-
-            <section className="min-w-0 space-y-3">
-              <h2 className="text-sm font-medium text-slate-300">Request log</h2>
-              <RequestLog entries={log.filter((e) => e.clientId === clientId)} />
-            </section>
+            )}
           </div>
-        )}
-      </BackendGate>
+
+          <BackendGate>
+            {clientId === null || now === null ? (
+              <div className="rounded-xl bg-white/[0.02] px-3 py-6 text-center text-sm text-slate-600">
+                Setting up your session…
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <AlgorithmSelector selected={algorithm} onSelect={setAlgorithm} />
+
+                <ControlToolbar
+                  limit={limit}
+                  windowSeconds={windowSeconds}
+                  onLimitChange={setLimit}
+                  onWindowSecondsChange={setWindowSeconds}
+                  burstCount={burstCount}
+                  onBurstCountChange={setBurstCount}
+                  onSendOne={sendOne}
+                  onSendBurst={sendBurst}
+                  sendingOne={sendingOne}
+                  sendingBurst={sendingBurst}
+                />
+
+                <StatusBanner latest={latestForAlgorithm} algorithmName={meta.name} now={now} />
+
+                <section className="rounded-2xl bg-white/[0.03] p-6 sm:p-8">
+                  <div className="mb-6 flex items-center gap-2">
+                    <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
+                    <h2 className="text-sm font-medium text-slate-300">
+                      {meta.name} — live state
+                    </h2>
+                  </div>
+                  <VisualizerPanel
+                    algorithm={algorithm}
+                    entries={algoEntries}
+                    limit={limit}
+                    windowSeconds={windowSeconds}
+                    now={now}
+                  />
+                </section>
+              </div>
+            )}
+          </BackendGate>
+        </div>
+      </main>
+
+      <aside className="flex h-[38vh] min-h-0 shrink-0 flex-col border-t border-white/[0.06] lg:h-auto lg:w-[380px] lg:border-l lg:border-t-0">
+        <div className="shrink-0 px-5 py-4">
+          <h2 className="text-sm font-semibold text-slate-200">Request log</h2>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4">
+          <RequestLog entries={clientId ? log.filter((e) => e.clientId === clientId) : []} />
+        </div>
+      </aside>
     </div>
   );
 }
