@@ -12,6 +12,10 @@ app.use(cors());
 const PORT = process.env.PORT || 8888;
 app.use("/", checkRoute);
 
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
 app.listen(PORT, () => {
   console.log(`Server is running at ${PORT}`);
 });
