@@ -42,13 +42,17 @@ The live demo frames everything around a small story: **SkyCheck**, a fictional 
         ┌───────────┬─────────────┼─────────────┬───────────┐
         ▼           ▼             ▼             ▼
   SlidingWindow  SlidingWindow  TokenBucket   LeakyBucket
-     Log          Counter      (Lua script)  (Lua script)
+     Log          Counter
         │           │             │             │
         └───────────┴──────┬──────┴─────────────┘
                             ▼
                 Redis (shared, one instance)
         sorted sets · counters · atomic Lua scripts
 ```
+
+Sliding Window Log, Token Bucket, and Leaky Bucket each run their read-check-write sequence as a
+single Lua script (`EVAL`), so the whole thing is atomic on Redis's single thread. Sliding Window
+Counter is the only one that doesn't need this — see [Engineering notes](#engineering-notes--talking-points).
 
 Every algorithm implements the same `RateLimiterStrategy` interface, so the route and factory never change when a new algorithm is added — only a new class and one line in the factory. Multiple backend instances can run behind a load balancer and still enforce one consistent limit per client, because they all read and write the same Redis — that's what makes this "distributed" rather than just "rate limiting."
 
@@ -79,6 +83,13 @@ Missing `clientId` or an unrecognized `algorithm` returns `400`:
 { "error": "clientId is required" }
 ```
 
+A Redis/Lua failure on the strategy's own read-check-write returns `503` instead — a signal to
+retry, not a bad request:
+
+```json
+{ "error": "Rate limiter is temporarily unavailable. Please try again." }
+```
+
 ### `GET /uptime`
 
 Returns `{ "status": "ok" }`. Used by the frontend to detect whether the backend is awake before showing the demo (free-tier hosts spin down after inactivity). Named `/uptime` rather than `/health` because some ad blockers and privacy extensions block generic `/health`-style endpoints, mistaking them for analytics beacons.
@@ -89,7 +100,7 @@ Returns `{ "status": "ok" }`. Used by the frontend to detect whether the backend
 |---|---|---|
 | Backend | Node.js + Express (ESM) | Simple, fast, standard for a small API service |
 | Storage | Redis Cloud (`ioredis`) | Atomic operations, TTL-based cleanup, and — critically — shared state across backend instances |
-| Atomicity | Redis Lua scripting (`EVAL`) | Token Bucket and Leaky Bucket need multi-step read-compute-write sequences to be atomic; Lua scripts run as one indivisible unit on Redis's single thread |
+| Atomicity | Redis Lua scripting (`EVAL`) | Sliding Window Log, Token Bucket, and Leaky Bucket need multi-step read-compute-write sequences to be atomic; Lua scripts run as one indivisible unit on Redis's single thread |
 | Frontend | Next.js (App Router) + TypeScript + Tailwind | Live, interactive demo with per-algorithm visualizations |
 | Backend hosting | Render | Free tier, supports a real always-on process (required for a persistent Redis connection — see notes below) |
 | Frontend hosting | Vercel | Standard for Next.js, fast static/edge delivery |
@@ -103,7 +114,7 @@ throttl/
 ├── backend/                 Node.js + Express + Redis service
 │   ├── algorithms/
 │   │   ├── RateLimiterStrategy.js   shared interface every algorithm implements
-│   │   ├── slidingWindowLog.js
+│   │   ├── slidingWindowLog.js      includes the Lua script + ioredis defineCommand
 │   │   ├── slidingWindowCounter.js
 │   │   ├── tokenBucket.js           includes the Lua script + ioredis defineCommand
 │   │   ├── leakyBucket.js           includes the Lua script + ioredis defineCommand
@@ -148,9 +159,9 @@ Open `http://localhost:3000` for the demo; the backend runs on `http://localhost
 
 A few decisions worth being able to explain without notes:
 
-**Race conditions are handled without locks.** Sliding Window Log and Sliding Window Counter use an "optimistic write, then self-correct" pattern: write first, check the result, and undo the write if it turned out to violate the limit. This biases any race condition toward being *too strict* (occasionally denying a request that technically should've squeaked through) rather than *too loose* (letting extra requests past the limit) — the safe direction for a rate limiter to fail in.
+**Race conditions are handled without locks.** Sliding Window Counter uses an "optimistic write, then self-correct" pattern: write first, check the result, and undo the write if it turned out to violate the limit. This biases any race condition toward being *too strict* (occasionally denying a request that technically should've squeaked through) rather than *too loose* (letting extra requests past the limit) — the safe direction for a rate limiter to fail in.
 
-**Token Bucket and Leaky Bucket use Redis Lua scripting, not the optimistic pattern.** Both need a read-compute-write sequence (current tokens/level *and* a timestamp, combined) that has to be atomic as a whole, not just per-command. A Lua script sent via `EVAL` runs as one indivisible unit on Redis's single thread — no other client's command can interleave in the middle of it.
+**Sliding Window Log, Token Bucket, and Leaky Bucket use Redis Lua scripting instead of the optimistic pattern.** Sliding Window Log's naive form — `ZADD` the request, `ZREMRANGEBYSCORE` to trim the window, `ZCARD` to count, then `ZREM` to undo if over the limit — is four separate round trips, and under concurrent requests the count read by one client's `ZCARD` can be stale by the time it acts on it, letting a burst admit more than the configured limit. Wrapping the same steps in a Lua script sent via `EVAL` makes them one indivisible unit on Redis's single thread, so no other client's command can interleave partway through — the same reason Token Bucket and Leaky Bucket need it for their combined read-compute-write of tokens/level plus a timestamp.
 
 **Leaky Bucket, implemented as a "meter," is provably near-identical to Token Bucket in its admission decisions** — with matching capacity/rate and mirrored starting conditions (Token Bucket starts full, Leaky Bucket starts empty), `level(t) = capacity - tokens(t)` holds at every instant, so they make the same allow/deny call for any request sequence. The real differentiator is Leaky Bucket's literal queueing behavior: instead of blocking the HTTP response until a request's turn arrives (which would make `/check` unpredictably slow — not how real rate limiters behave), it responds instantly like the other three algorithms but includes `queuePosition` and `estimatedProcessAt`, giving the caller genuine queue-position information without ever holding a connection open.
 

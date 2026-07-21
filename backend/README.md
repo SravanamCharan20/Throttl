@@ -34,6 +34,13 @@ denied). Missing `clientId` or an unrecognized `algorithm` returns `400`:
 { "error": "clientId is required" }
 ```
 
+If the rate limiter's own Redis call fails or times out (Lua script error, dropped connection,
+etc.), the request returns `503` rather than `400` — it's not the caller's fault:
+
+```json
+{ "error": "Rate limiter is temporarily unavailable. Please try again." }
+```
+
 ### `GET /uptime`
 
 Returns `{ "status": "ok" }`. Used by the frontend to detect whether the backend is awake.
