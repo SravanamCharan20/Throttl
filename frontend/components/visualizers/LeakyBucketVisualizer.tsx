@@ -1,5 +1,5 @@
 import type { LogEntry } from "@/lib/types";
-import { estimateLeakyBucketLevel } from "@/lib/bucketMath";
+import { estimateLeakyBucketLevel, leakyBucketQueueItems } from "@/lib/bucketMath";
 
 interface LeakyBucketVisualizerProps {
   entries: LogEntry[];
@@ -16,25 +16,32 @@ export default function LeakyBucketVisualizer({
 }: LeakyBucketVisualizerProps) {
   const level = estimateLeakyBucketLevel(entries, limit, windowSeconds, now);
   const pct = limit > 0 ? Math.min(100, (level / limit) * 100) : 0;
+  const leakPerSecond = limit / windowSeconds;
+  const queue = leakyBucketQueueItems(entries, now).slice(0, 8);
 
-  const pending = entries
-    .flatMap((e) => {
-      if (!e.result.ok || !e.result.data.allowed) return [];
-      const { queuePosition, estimatedProcessAt } = e.result.data;
-      if (typeof queuePosition !== "number" || typeof estimatedProcessAt !== "number") return [];
-      if (estimatedProcessAt <= now) return [];
-      return [{ id: e.id, queuePosition, estimatedProcessAt }];
+  const recentProcessed = entries
+    .filter(
+      (e) =>
+        !e.inFlight &&
+        e.result.ok &&
+        e.result.data.allowed &&
+        typeof e.result.data.processedAt === "number" &&
+        now - (e.result.data.processedAt ?? 0) < 8000,
+    )
+    .sort((a, b) => {
+      const ap = a.result.ok ? (a.result.data.processedAt ?? 0) : 0;
+      const bp = b.result.ok ? (b.result.data.processedAt ?? 0) : 0;
+      return bp - ap;
     })
-    .sort((a, b) => a.estimatedProcessAt - b.estimatedProcessAt)
-    .slice(0, 5);
+    .slice(0, 4);
 
   return (
     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
       <div className="space-y-3">
         <div className="flex items-center justify-between text-sm text-slate-400">
-          <span>Bucket level</span>
+          <span>FIFO queue depth</span>
           <span className="font-mono text-slate-300">
-            {level.toFixed(2)} / {limit}
+            {level} / {limit}
           </span>
         </div>
         <div className="relative mx-auto h-40 w-28 overflow-hidden rounded-[1.5rem] bg-white/[0.03]">
@@ -46,30 +53,68 @@ export default function LeakyBucketVisualizer({
           </div>
         </div>
         <p className="text-center text-xs text-slate-500">
-          rises 1 per accepted request, drains at a constant, paced rate
+          capacity {limit} · processes at {leakPerSecond.toFixed(2)} req/s (constant leak)
         </p>
       </div>
 
-      <div className="space-y-2">
-        <p className="text-sm text-slate-400">Processing queue</p>
-        {pending.length === 0 ? (
-          <div className="rounded-xl bg-white/[0.03] px-3 py-4 text-center text-xs text-slate-600">
-            Nothing pending right now.
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <p className="text-sm text-slate-400">Waiting to process</p>
+          {queue.length === 0 ? (
+            <div className="rounded-xl bg-white/[0.03] px-3 py-4 text-center text-xs text-slate-600">
+              Queue empty — next request processes at the leak rate.
+            </div>
+          ) : (
+            <ul className="space-y-1.5">
+              {queue.map((e, i) => (
+                <li
+                  key={e.id}
+                  className="flex items-center justify-between rounded-lg bg-white/[0.03] px-3 py-2.5 text-sm"
+                >
+                  <span className="text-slate-300">
+                    {e.inFlight
+                      ? "In flight…"
+                      : i === 0
+                        ? "Next up"
+                        : `#${(e.queuePosition ?? i) + 1} in line`}
+                  </span>
+                  <span className="font-mono text-slate-500">
+                    {e.estimatedProcessAt
+                      ? `${Math.max(0, Math.ceil((e.estimatedProcessAt - now) / 1000))}s`
+                      : "queued"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {recentProcessed.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm text-slate-400">Recently processed</p>
+            <ul className="space-y-1.5">
+              {recentProcessed.map((e) => {
+                const data = e.result.ok ? e.result.data : null;
+                const waitMs =
+                  data && typeof data.processedAt === "number"
+                    ? Math.max(0, data.processedAt - e.sentAt)
+                    : 0;
+                return (
+                  <li
+                    key={e.id}
+                    className="flex items-center justify-between rounded-lg bg-emerald-500/[0.06] px-3 py-2 text-xs text-emerald-200/90"
+                  >
+                    <span>
+                      #{typeof data?.queuePosition === "number" ? data.queuePosition : "—"} leaked
+                    </span>
+                    <span className="font-mono text-emerald-200/60">
+                      waited {(waitMs / 1000).toFixed(1)}s
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
-        ) : (
-          <ul className="space-y-1.5">
-            {pending.map((e, i) => (
-              <li
-                key={e.id}
-                className="flex items-center justify-between rounded-lg bg-white/[0.03] px-3 py-2.5 text-sm"
-              >
-                <span className="text-slate-300">{i === 0 ? "Next up" : `#${i + 1} in line`}</span>
-                <span className="font-mono text-slate-500">
-                  {Math.max(0, Math.ceil((e.estimatedProcessAt - now) / 1000))}s
-                </span>
-              </li>
-            ))}
-          </ul>
         )}
       </div>
     </div>

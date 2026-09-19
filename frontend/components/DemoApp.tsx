@@ -49,33 +49,112 @@ export default function DemoApp() {
   const sendOne = useCallback(async () => {
     if (!clientId || busy) return;
     setSendingOne(true);
+    const id = newEntryId();
     const sentAt = Date.now();
+
+    if (algorithm === "leaky-bucket") {
+      setLog((prev) => [
+        {
+          id,
+          algorithm,
+          clientId,
+          sentAt,
+          limit,
+          windowSeconds,
+          inFlight: true,
+          result: {
+            ok: true,
+            status: 200,
+            data: {
+              allowed: true,
+              remaining: limit,
+              resetAt: sentAt + windowSeconds * 1000,
+              queuePosition: null,
+              estimatedProcessAt: null,
+              processedAt: null,
+            },
+          },
+        },
+        ...prev,
+      ]);
+    }
+
     const result = await checkLimit({ clientId, algorithm, limit, windowSeconds });
-    setLog((prev) => [
-      { id: newEntryId(), algorithm, clientId, sentAt, limit, windowSeconds, result },
-      ...prev,
-    ]);
+
+    if (algorithm === "leaky-bucket") {
+      setLog((prev) =>
+        prev.map((e) => (e.id === id ? { ...e, inFlight: false, result } : e)),
+      );
+    } else {
+      setLog((prev) => [
+        { id, algorithm, clientId, sentAt, limit, windowSeconds, result },
+        ...prev,
+      ]);
+    }
     setSendingOne(false);
   }, [clientId, algorithm, limit, windowSeconds, busy]);
 
   const sendBurst = useCallback(async () => {
     if (!clientId || busy) return;
     setSendingBurst(true);
+
     const dispatches = Array.from({ length: burstCount }, () => ({
+      id: newEntryId(),
       sentAt: Date.now(),
       promise: checkLimit({ clientId, algorithm, limit, windowSeconds }),
     }));
+
+    if (algorithm === "leaky-bucket") {
+      setLog((prev) => [
+        ...dispatches
+          .map((d) => ({
+            id: d.id,
+            algorithm,
+            clientId,
+            sentAt: d.sentAt,
+            limit,
+            windowSeconds,
+            inFlight: true as const,
+            result: {
+              ok: true as const,
+              status: 200 as const,
+              data: {
+                allowed: true,
+                remaining: limit,
+                resetAt: d.sentAt + windowSeconds * 1000,
+                queuePosition: null,
+                estimatedProcessAt: null,
+                processedAt: null,
+              },
+            },
+          }))
+          .reverse(),
+        ...prev,
+      ]);
+    }
+
     const results = await Promise.all(dispatches.map((d) => d.promise));
-    const entries: LogEntry[] = results.map((result, i) => ({
-      id: newEntryId(),
-      algorithm,
-      clientId,
-      sentAt: dispatches[i].sentAt,
-      limit,
-      windowSeconds,
-      result,
-    }));
-    setLog((prev) => [...entries.reverse(), ...prev]);
+
+    if (algorithm === "leaky-bucket") {
+      const byId = new Map(dispatches.map((d, i) => [d.id, results[i]]));
+      setLog((prev) =>
+        prev.map((e) => {
+          const result = byId.get(e.id);
+          return result ? { ...e, inFlight: false, result } : e;
+        }),
+      );
+    } else {
+      const entries: LogEntry[] = results.map((result, i) => ({
+        id: dispatches[i].id,
+        algorithm,
+        clientId,
+        sentAt: dispatches[i].sentAt,
+        limit,
+        windowSeconds,
+        result,
+      }));
+      setLog((prev) => [...entries.reverse(), ...prev]);
+    }
     setSendingBurst(false);
   }, [clientId, algorithm, limit, windowSeconds, burstCount, busy]);
 

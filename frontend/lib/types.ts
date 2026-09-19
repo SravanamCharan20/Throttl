@@ -17,7 +17,9 @@ export interface CheckResponse {
   resetAt: number;
   queuePosition?: number | null;
   estimatedProcessAt?: number | null;
+  processedAt?: number | null;
 }
+
 
 export interface ApiErrorResponse {
   error: string;
@@ -35,4 +37,7 @@ export interface LogEntry {
   limit: number;
   windowSeconds: number;
   result: CheckResult;
+  /** True while a leaky-bucket request is waiting in the server-side FIFO. */
+  inFlight?: boolean;
 }
+

@@ -26,24 +26,33 @@ export default function RequestLog({ entries }: RequestLogProps) {
     <ul>
       {entries.map((entry) => {
         const meta = algorithmMeta(entry.algorithm);
-        const resultLabel = !entry.result.ok
-          ? "Error"
-          : entry.result.data.allowed
-            ? "Allowed"
-            : "Denied";
-        const resultColor = !entry.result.ok
-          ? "text-amber-300"
-          : entry.result.data.allowed
-            ? "text-emerald-300"
-            : "text-rose-300";
         const queueInfo =
           entry.result.ok &&
           entry.result.data.allowed &&
           typeof entry.result.data.queuePosition === "number"
-            ? ` · #${entry.result.data.queuePosition} processes ${formatTime(
-                entry.result.data.estimatedProcessAt ?? entry.result.data.resetAt,
+            ? ` · queued #${entry.result.data.queuePosition}, processed ${formatTime(
+                entry.result.data.processedAt ??
+                  entry.result.data.estimatedProcessAt ??
+                  entry.result.data.resetAt,
               )}`
-            : "";
+            : entry.inFlight
+              ? " · waiting in FIFO…"
+              : "";
+
+        const resultLabel = entry.inFlight
+          ? "Queued"
+          : !entry.result.ok
+            ? "Error"
+            : entry.result.data.allowed
+              ? "Processed"
+              : "Denied";
+        const resultColor = entry.inFlight
+          ? "text-sky-300"
+          : !entry.result.ok
+            ? "text-amber-300"
+            : entry.result.data.allowed
+              ? "text-emerald-300"
+              : "text-rose-300";
 
         return (
           <li

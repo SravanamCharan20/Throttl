@@ -16,7 +16,7 @@ The live demo frames everything around a small story: **SkyCheck**, a fictional 
 - **Sliding Window Log** — a live timeline of recent request timestamps
 - **Sliding Window Counter** — previous/current window bars plus a blended estimate meter
 - **Token Bucket** — a bucket that fills during idle time and drains per request
-- **Leaky Bucket** — a bucket that rises with accepted requests, reporting a paced queue position instead of blocking
+- **Leaky Bucket** — a real FIFO queue: requests wait, then leak out at a constant paced rate
 
 ## The four algorithms
 
@@ -25,7 +25,7 @@ The live demo frames everything around a small story: **SkyCheck**, a fictional 
 | Sliding Window Log | Exact log of request timestamps in a Redis sorted set; trims anything outside the trailing window on every check | Grows with request volume | Exact — no boundary exploit | Strict, no reward for idle time |
 | Sliding Window Counter | Two fixed-window counters (previous + current), blended by how much of the previous window still overlaps the trailing lookback | O(1) — two numbers | Close approximation, small bounded error at extreme edge cases | Strict, same as Log |
 | Token Bucket | Tokens refill at a steady rate up to a capacity; each request spends one | O(1) — two numbers (tokens, last refill time) | Exact for its own model | Rewards idle time with burst capacity |
-| Leaky Bucket | A "water level" rises per request and drains at a constant rate; admission blocked if it would overflow | O(1) — two numbers (level, last leak time) | Exact for its own model | As a meter, mathematically mirrors Token Bucket — see engineering notes below |
+| Leaky Bucket | Real FIFO in a Redis ZSET scored by processAt; capacity = max queue length; `/check` waits until this request leaks out at interval window/limit | O(n) queued request ids | Exact for its own model | Smooths bursts — at most `limit` waiting; releases one per leak tick |
 
 ## Architecture
 
@@ -76,7 +76,9 @@ back off until `resetAt`):
 { "allowed": true, "remaining": 3, "resetAt": 1720440060000 }
 ```
 
-`leaky-bucket` responses additionally include `queuePosition` and `estimatedProcessAt` (both `null` when denied) — see [Engineering notes](#engineering-notes--talking-points).
+`leaky-bucket` responses additionally include `queuePosition`, `estimatedProcessAt`, and
+`processedAt` (all `null` when denied). `/check` **blocks until the request has been
+processed** out of the FIFO at the leak rate — see [Engineering notes](#engineering-notes--talking-points).
 
 Missing `clientId`, missing/unknown `algorithm`, or a non-positive `limit` / `windowSeconds` returns `400`:
 
@@ -171,6 +173,12 @@ entirely. Sliding Window Log / Token Bucket / Leaky Bucket need the same treatme
 combined sorted-set or hash read-compute-write sequences — the naive multi-command variants
 live in `*_Prev.js` / `*_testing.js`.
 
-**Leaky Bucket, implemented as a "meter," is provably near-identical to Token Bucket in its admission decisions** — with matching capacity/rate and mirrored starting conditions (Token Bucket starts full, Leaky Bucket starts empty), `level(t) = capacity - tokens(t)` holds at every instant, so they make the same allow/deny call for any request sequence. The real differentiator is Leaky Bucket's literal queueing behavior: instead of blocking the HTTP response until a request's turn arrives (which would make `/check` unpredictably slow — not how real rate limiters behave), it responds instantly like the other three algorithms but includes `queuePosition` and `estimatedProcessAt`, giving the caller genuine queue-position information without ever holding a connection open.
+**Leaky Bucket is a real FIFO queue, not a Token Bucket mirror.** Requests are stored in a
+Redis sorted set (`ratelimit:lb:q:*`) scored by absolute `processAt`. On every check a Lua
+script (1) drops due items, (2) rejects if the queue is at capacity, else (3) schedules the
+new request at `max(now, latestProcessAt) + leakInterval`. The HTTP handler then **waits until
+that request id has been processed** before returning 200 — callers only proceed at the paced
+output rate. The old water-level meter (mathematically equivalent to Token Bucket) is kept in
+`leakyBucket_Prev.js` for comparison.
 
 **Concurrency is tested, not assumed.** `backend/concurrencyTest.js` fires 20 simultaneous checks (via `Promise.all`, not sequential calls) against each algorithm on shared Redis with `limit=5` and fails the process if any algorithm admits more than 5 — proof the atomic Lua paths hold up under real contention. Run it with `npm run test:concurrency` from `backend/`. The SkyCheck demo also exposes **Validate 20 concurrent**, which runs the same probe over HTTP and surfaces pass/fail in the UI.

@@ -41,29 +41,66 @@ export function estimateTokenBucketRetryMs(
   return Math.ceil((1 - tokens) / refillRatePerMs);
 }
 
-/** Current water level, animated forward (drained) from the last accepted request. */
-export function estimateLeakyBucketLevel(
-  entries: LogEntry[],
-  limit: number,
-  windowSeconds: number,
-  now: number,
-): number {
-  const leakRatePerMs = limit / (windowSeconds * 1000);
-  const latestAllowed = latestBySentAt(
-    entries.filter(
-      (e) => e.result.ok && e.result.data.allowed && typeof e.result.data.queuePosition === "number",
-    ),
-  );
+export interface LeakyQueueItem {
+  id: string;
+  sentAt: number;
+  queuePosition: number | null;
+  estimatedProcessAt: number | null;
+  inFlight: boolean;
+  processed: boolean;
+}
 
-  let baseLevel = 0;
-  let baseTime = now;
-  if (latestAllowed && latestAllowed.result.ok) {
-    baseLevel = (latestAllowed.result.data.queuePosition ?? 0) + 1;
-    baseTime = latestAllowed.sentAt;
+/**
+ * Reconstruct the FIFO: in-flight requests plus completed ones still within
+ * their process window. Sorted by estimated process time / send order.
+ */
+export function leakyBucketQueueItems(entries: LogEntry[], now: number): LeakyQueueItem[] {
+  const items: LeakyQueueItem[] = [];
+
+  for (const e of entries) {
+    if (e.inFlight) {
+      items.push({
+        id: e.id,
+        sentAt: e.sentAt,
+        queuePosition: null,
+        estimatedProcessAt: null,
+        inFlight: true,
+        processed: false,
+      });
+      continue;
+    }
+
+    if (!e.result.ok || !e.result.data.allowed) continue;
+    const { queuePosition, estimatedProcessAt, processedAt } = e.result.data;
+    const doneAt = processedAt ?? estimatedProcessAt ?? e.sentAt;
+    // Keep in the "recently processed" strip briefly; treat as queued until doneAt.
+    if (doneAt > now) {
+      items.push({
+        id: e.id,
+        sentAt: e.sentAt,
+        queuePosition: typeof queuePosition === "number" ? queuePosition : null,
+        estimatedProcessAt: typeof estimatedProcessAt === "number" ? estimatedProcessAt : null,
+        inFlight: false,
+        processed: false,
+      });
+    }
   }
 
-  const elapsed = Math.max(0, now - baseTime);
-  return Math.max(0, baseLevel - elapsed * leakRatePerMs);
+  return items.sort((a, b) => {
+    const aKey = a.estimatedProcessAt ?? a.sentAt;
+    const bKey = b.estimatedProcessAt ?? b.sentAt;
+    return aKey - bKey;
+  });
+}
+
+/** Occupancy of the FIFO (in-flight + not-yet-processed). */
+export function estimateLeakyBucketLevel(
+  entries: LogEntry[],
+  _limit: number,
+  _windowSeconds: number,
+  now: number,
+): number {
+  return leakyBucketQueueItems(entries, now).length;
 }
 
 /** Milliseconds until the leaky bucket has room for one more request (0 if already there). */
@@ -74,8 +111,17 @@ export function estimateLeakyBucketRetryMs(
   now: number,
 ): number {
   const level = estimateLeakyBucketLevel(entries, limit, windowSeconds, now);
-  const room = limit - 1 - level;
-  if (room >= 0) return 0;
-  const leakRatePerMs = limit / (windowSeconds * 1000);
-  return Math.ceil(-room / leakRatePerMs);
+  if (level < limit) return 0;
+
+  const interval = (windowSeconds * 1000) / limit;
+  const waiting = leakyBucketQueueItems(entries, now);
+  const nextDone = waiting
+    .map((w) => w.estimatedProcessAt)
+    .filter((t): t is number => typeof t === "number")
+    .sort((a, b) => a - b)[0];
+
+  if (typeof nextDone === "number") {
+    return Math.max(0, nextDone - now);
+  }
+  return Math.ceil(interval);
 }

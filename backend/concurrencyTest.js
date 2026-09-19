@@ -25,7 +25,9 @@ const ALGORITHMS = [
 
 const CONCURRENT = 20;
 const LIMIT = 5;
-const WINDOW_SECONDS = 60;
+// Short window so leaky-bucket FIFO waits stay fast in CI/local runs
+// (interval = window/limit; position 4 waits ~4 intervals).
+const WINDOW_SECONDS = 2;
 const API_URL = process.env.THROTTL_API_URL || null;
 
 async function clearClientKeys(clientId) {
@@ -33,6 +35,8 @@ async function clearClientKeys(clientId) {
     `ratelimit:slw:log:${clientId}`,
     `ratelimit:tb:${clientId}`,
     `ratelimit:lb:${clientId}`,
+    `ratelimit:lb:q:${clientId}`,
+    `ratelimit:lb:m:${clientId}`,
   ];
   await redis.del(...exact);
 

@@ -27,8 +27,11 @@ Returns `200` if allowed or `429` if denied (includes `Retry-After` based on `re
 { "allowed": true, "remaining": 3, "resetAt": 1720440060000 }
 ```
 
-`leaky-bucket` responses also include `queuePosition` and `estimatedProcessAt` (both `null` when
-denied). Missing `clientId`, missing/unknown `algorithm`, or a non-positive `limit` /
+`leaky-bucket` responses also include `queuePosition`, `estimatedProcessAt`, and `processedAt`
+(all `null` when denied). The handler waits until the request has leaked out of the Redis FIFO
+before returning 200.
+
+Missing `clientId`, missing/unknown `algorithm`, or a non-positive `limit` /
 `windowSeconds` returns `400`:
 
 ```json

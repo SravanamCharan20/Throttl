@@ -10,7 +10,7 @@ requests or fire a burst to watch each algorithm accept and reject traffic in re
 - **Sliding Window Log** — a live timeline of recent request timestamps
 - **Sliding Window Counter** — previous/current window bars plus a blended estimate meter
 - **Token Bucket** — a bucket that fills with idle time and drains per request
-- **Leaky Bucket** — a bucket that rises with accepted requests and a paced processing queue
+- **Leaky Bucket** — real FIFO queue; requests wait then process at a constant leak rate
 
 Every request (allowed, denied, or errored) shows up in a running log underneath.
 

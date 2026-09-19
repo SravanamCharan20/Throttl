@@ -34,7 +34,7 @@ export const ALGORITHMS: AlgorithmMeta[] = [
     id: "leaky-bucket",
     name: "Leaky Bucket",
     shortName: "Leaky",
-    tagline: "Smooths bursts into a steady, paced output.",
+    tagline: "Real FIFO queue — requests wait, then leak out at a constant rate.",
     dot: "bg-emerald-400",
   },
 ];

@@ -56,7 +56,12 @@ export default function StatusBanner({
   let message = `Send a request to see how ${algorithmName} responds.`;
 
   if (latest && now !== null) {
-    if (!latest.result.ok) {
+    if (latest.inFlight) {
+      dot = "bg-sky-400";
+      text = "text-sky-300";
+      bg = "bg-sky-500/[0.07]";
+      message = "Accepted into the FIFO — waiting for the leaky bucket to process this request at the paced rate…";
+    } else if (!latest.result.ok) {
       dot = "bg-amber-400";
       text = "text-amber-300";
       bg = "bg-amber-500/[0.07]";
@@ -70,6 +75,16 @@ export default function StatusBanner({
         data.remaining === 0
           ? `Allowed — that was your last request before the window resets at ${formatClock(data.resetAt)}.`
           : `Allowed — ${data.remaining} request${data.remaining === 1 ? "" : "s"} remaining, window resets at ${formatClock(data.resetAt)}.`;
+
+      if (
+        algorithm === "leaky-bucket" &&
+        typeof data.queuePosition === "number" &&
+        typeof data.processedAt === "number"
+      ) {
+        const waitedSec = Math.max(0, (data.processedAt - latest.sentAt) / 1000);
+        message =
+          `Queued as #${data.queuePosition}, then processed after ${waitedSec.toFixed(1)}s at the leak rate. ${data.remaining} slot${data.remaining === 1 ? "" : "s"} free.`;
+      }
     } else {
       dot = "bg-rose-400";
       text = "text-rose-300";
