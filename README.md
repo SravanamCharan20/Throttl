@@ -50,9 +50,9 @@ The live demo frames everything around a small story: **SkyCheck**, a fictional 
         sorted sets · counters · atomic Lua scripts
 ```
 
-Sliding Window Log, Token Bucket, and Leaky Bucket each run their read-check-write sequence as a
-single Lua script (`EVAL`), so the whole thing is atomic on Redis's single thread. Sliding Window
-Counter is the only one that doesn't need this — see [Engineering notes](#engineering-notes--talking-points).
+Sliding Window Log, Sliding Window Counter, Token Bucket, and Leaky Bucket each run their
+read-check-write sequence as a single Lua script (`EVAL`), so the whole thing is atomic on
+Redis's single thread — see [Engineering notes](#engineering-notes--talking-points).
 
 Every algorithm implements the same `RateLimiterStrategy` interface, so the route and factory never change when a new algorithm is added — only a new class and one line in the factory. Multiple backend instances can run behind a load balancer and still enforce one consistent limit per client, because they all read and write the same Redis — that's what makes this "distributed" rather than just "rate limiting."
 
@@ -69,7 +69,8 @@ Every algorithm implements the same `RateLimiterStrategy` interface, so the rout
 }
 ```
 
-Returns `200` if allowed, `429` if denied:
+Returns `200` if allowed, `429` if denied (with a `Retry-After` header so clients can
+back off until `resetAt`):
 
 ```json
 { "allowed": true, "remaining": 3, "resetAt": 1720440060000 }
@@ -77,7 +78,7 @@ Returns `200` if allowed, `429` if denied:
 
 `leaky-bucket` responses additionally include `queuePosition` and `estimatedProcessAt` (both `null` when denied) — see [Engineering notes](#engineering-notes--talking-points).
 
-Missing `clientId` or an unrecognized `algorithm` returns `400`:
+Missing `clientId`, missing/unknown `algorithm`, or a non-positive `limit` / `windowSeconds` returns `400`:
 
 ```json
 { "error": "clientId is required" }
@@ -112,6 +113,7 @@ Returns `{ "status": "ok" }`. Used by the frontend to detect whether the backend
 throttl/
 ├── render.yaml              Render deployment blueprint (rootDir: backend)
 ├── backend/                 Node.js + Express + Redis service
+│   ├── concurrencyTest.js   20-way concurrent admission check (limit=5) per algorithm
 │   ├── algorithms/
 │   │   ├── RateLimiterStrategy.js   shared interface every algorithm implements
 │   │   ├── slidingWindowLog.js      includes the Lua script + ioredis defineCommand
@@ -120,6 +122,7 @@ throttl/
 │   │   ├── leakyBucket.js           includes the Lua script + ioredis defineCommand
 │   │   └── strategyFactory.js       looks up an algorithm instance by name
 │   ├── config/limits.js     default limit/window values
+│   ├── lib/httpErrors.js    400 validation helpers + Redis failure classification
 │   ├── routes/check.js      the POST /check endpoint
 │   ├── redisClient.js       the one shared Redis connection
 │   └── index.js             Express app entry point
@@ -159,10 +162,15 @@ Open `http://localhost:3000` for the demo; the backend runs on `http://localhost
 
 A few decisions worth being able to explain without notes:
 
-**Race conditions are handled without locks.** Sliding Window Counter uses an "optimistic write, then self-correct" pattern: write first, check the result, and undo the write if it turned out to violate the limit. This biases any race condition toward being *too strict* (occasionally denying a request that technically should've squeaked through) rather than *too loose* (letting extra requests past the limit) — the safe direction for a rate limiter to fail in.
-
-**Sliding Window Log, Token Bucket, and Leaky Bucket use Redis Lua scripting instead of the optimistic pattern.** Sliding Window Log's naive form — `ZADD` the request, `ZREMRANGEBYSCORE` to trim the window, `ZCARD` to count, then `ZREM` to undo if over the limit — is four separate round trips, and under concurrent requests the count read by one client's `ZCARD` can be stale by the time it acts on it, letting a burst admit more than the configured limit. Wrapping the same steps in a Lua script sent via `EVAL` makes them one indivisible unit on Redis's single thread, so no other client's command can interleave partway through — the same reason Token Bucket and Leaky Bucket need it for their combined read-compute-write of tokens/level plus a timestamp.
+**Race conditions are handled with Redis Lua, not application locks.** Every algorithm's
+read-check-write path runs as one `EVAL` script on Redis's single thread, so concurrent
+clients cannot interleave mid-decision. Sliding Window Counter's older optimistic
+`INCR` → estimate → `DECR` form (kept in `slidingWindowCounter_Prev.js` for comparison)
+biases races toward being *too strict*; the Lua form removes the multi-round-trip race
+entirely. Sliding Window Log / Token Bucket / Leaky Bucket need the same treatment for their
+combined sorted-set or hash read-compute-write sequences — the naive multi-command variants
+live in `*_Prev.js` / `*_testing.js`.
 
 **Leaky Bucket, implemented as a "meter," is provably near-identical to Token Bucket in its admission decisions** — with matching capacity/rate and mirrored starting conditions (Token Bucket starts full, Leaky Bucket starts empty), `level(t) = capacity - tokens(t)` holds at every instant, so they make the same allow/deny call for any request sequence. The real differentiator is Leaky Bucket's literal queueing behavior: instead of blocking the HTTP response until a request's turn arrives (which would make `/check` unpredictably slow — not how real rate limiters behave), it responds instantly like the other three algorithms but includes `queuePosition` and `estimatedProcessAt`, giving the caller genuine queue-position information without ever holding a connection open.
 
-**Concurrency is tested, not assumed.** A `concurrencyTest.js` script fires 20 simultaneous requests (via `Promise.all`, not sequential calls) against each algorithm and confirms none of them ever admits more than the configured limit — proof the atomic-write strategies actually hold up under real contention, not just one-request-at-a-time testing.
+**Concurrency is tested, not assumed.** `backend/concurrencyTest.js` fires 20 simultaneous checks (via `Promise.all`, not sequential calls) against each algorithm on shared Redis with `limit=5` and fails the process if any algorithm admits more than 5 — proof the atomic Lua paths hold up under real contention. Run it with `npm run test:concurrency` from `backend/`. The SkyCheck demo also exposes **Validate 20 concurrent**, which runs the same probe over HTTP and surfaces pass/fail in the UI.

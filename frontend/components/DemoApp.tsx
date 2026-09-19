@@ -12,8 +12,11 @@ import ClientIdentity from "./ClientIdentity";
 import AlgorithmSelector from "./AlgorithmSelector";
 import ControlToolbar from "./ControlToolbar";
 import StatusBanner from "./StatusBanner";
+import ConcurrencyReport from "./ConcurrencyReport";
 import RequestLog from "./RequestLog";
 import VisualizerPanel from "./visualizers/VisualizerPanel";
+
+const CONCURRENCY_PROBE = 20;
 
 function newEntryId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -29,11 +32,22 @@ export default function DemoApp() {
   const [log, setLog] = useState<LogEntry[]>([]);
   const [sendingOne, setSendingOne] = useState(false);
   const [sendingBurst, setSendingBurst] = useState(false);
+  const [validatingConcurrency, setValidatingConcurrency] = useState(false);
+  const [concurrencyResult, setConcurrencyResult] = useState<{
+    concurrent: number;
+    limit: number;
+    admitted: number;
+    denied: number;
+    errors: number;
+    passed: boolean;
+  } | null>(null);
 
   const now = useNow(200);
 
+  const busy = sendingOne || sendingBurst || validatingConcurrency;
+
   const sendOne = useCallback(async () => {
-    if (!clientId || sendingOne || sendingBurst) return;
+    if (!clientId || busy) return;
     setSendingOne(true);
     const sentAt = Date.now();
     const result = await checkLimit({ clientId, algorithm, limit, windowSeconds });
@@ -42,10 +56,10 @@ export default function DemoApp() {
       ...prev,
     ]);
     setSendingOne(false);
-  }, [clientId, algorithm, limit, windowSeconds, sendingOne, sendingBurst]);
+  }, [clientId, algorithm, limit, windowSeconds, busy]);
 
   const sendBurst = useCallback(async () => {
-    if (!clientId || sendingOne || sendingBurst) return;
+    if (!clientId || busy) return;
     setSendingBurst(true);
     const dispatches = Array.from({ length: burstCount }, () => ({
       sentAt: Date.now(),
@@ -63,7 +77,51 @@ export default function DemoApp() {
     }));
     setLog((prev) => [...entries.reverse(), ...prev]);
     setSendingBurst(false);
-  }, [clientId, algorithm, limit, windowSeconds, burstCount, sendingOne, sendingBurst]);
+  }, [clientId, algorithm, limit, windowSeconds, burstCount, busy]);
+
+  const validateConcurrency = useCallback(async () => {
+    if (!clientId || busy) return;
+    setValidatingConcurrency(true);
+    setConcurrencyResult(null);
+
+    // Isolated client id so leftover window/bucket state cannot skew the probe.
+    const probeClientId = `${clientId}-c20-${Date.now()}`;
+    const dispatches = Array.from({ length: CONCURRENCY_PROBE }, () => ({
+      sentAt: Date.now(),
+      promise: checkLimit({
+        clientId: probeClientId,
+        algorithm,
+        limit,
+        windowSeconds,
+      }),
+    }));
+    const results = await Promise.all(dispatches.map((d) => d.promise));
+
+    const admitted = results.filter((r) => r.ok && r.data.allowed).length;
+    const denied = results.filter((r) => r.ok && !r.data.allowed).length;
+    const errors = results.filter((r) => !r.ok).length;
+    const passed = admitted <= limit && errors === 0;
+
+    const entries: LogEntry[] = results.map((result, i) => ({
+      id: newEntryId(),
+      algorithm,
+      clientId: probeClientId,
+      sentAt: dispatches[i].sentAt,
+      limit,
+      windowSeconds,
+      result,
+    }));
+    setLog((prev) => [...entries.reverse(), ...prev]);
+    setConcurrencyResult({
+      concurrent: CONCURRENCY_PROBE,
+      limit,
+      admitted,
+      denied,
+      errors,
+      passed,
+    });
+    setValidatingConcurrency(false);
+  }, [clientId, algorithm, limit, windowSeconds, busy]);
 
   const algoEntries = useMemo(
     () => (clientId ? log.filter((e) => e.algorithm === algorithm && e.clientId === clientId) : []),
@@ -104,9 +162,13 @@ export default function DemoApp() {
                   onBurstCountChange={setBurstCount}
                   onSendOne={sendOne}
                   onSendBurst={sendBurst}
+                  onValidateConcurrency={validateConcurrency}
                   sendingOne={sendingOne}
                   sendingBurst={sendingBurst}
+                  validatingConcurrency={validatingConcurrency}
                 />
+
+                <ConcurrencyReport result={concurrencyResult} />
 
                 <StatusBanner
                   latest={latestForAlgorithm}

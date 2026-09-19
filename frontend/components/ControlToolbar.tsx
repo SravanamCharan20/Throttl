@@ -7,8 +7,10 @@ interface ControlToolbarProps {
   onBurstCountChange: (count: number) => void;
   onSendOne: () => void;
   onSendBurst: () => void;
+  onValidateConcurrency: () => void;
   sendingOne: boolean;
   sendingBurst: boolean;
+  validatingConcurrency: boolean;
 }
 
 const inputClass =
@@ -23,10 +25,12 @@ export default function ControlToolbar({
   onBurstCountChange,
   onSendOne,
   onSendBurst,
+  onValidateConcurrency,
   sendingOne,
   sendingBurst,
+  validatingConcurrency,
 }: ControlToolbarProps) {
-  const disabled = sendingOne || sendingBurst;
+  const disabled = sendingOne || sendingBurst || validatingConcurrency;
 
   return (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-xl bg-white/[0.03] px-4 py-3.5">
@@ -85,6 +89,15 @@ export default function ControlToolbar({
           />
         </label>
       </div>
+
+      <button
+        onClick={onValidateConcurrency}
+        disabled={disabled}
+        title="Fire 20 concurrent requests and assert admitted ≤ limit"
+        className="rounded-lg border border-amber-500/30 px-4 py-2 text-sm font-medium text-amber-100 transition hover:border-amber-400/50 hover:bg-amber-500/10 disabled:cursor-not-allowed disabled:border-white/5 disabled:text-slate-500"
+      >
+        {validatingConcurrency ? "Validating…" : "Validate 20 concurrent"}
+      </button>
     </div>
   );
 }

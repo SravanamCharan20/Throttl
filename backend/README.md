@@ -21,14 +21,15 @@ rate-limiting algorithms:
 }
 ```
 
-Returns `200` if allowed or `429` if denied:
+Returns `200` if allowed or `429` if denied (includes `Retry-After` based on `resetAt`):
 
 ```json
 { "allowed": true, "remaining": 3, "resetAt": 1720440060000 }
 ```
 
 `leaky-bucket` responses also include `queuePosition` and `estimatedProcessAt` (both `null` when
-denied). Missing `clientId` or an unrecognized `algorithm` returns `400`:
+denied). Missing `clientId`, missing/unknown `algorithm`, or a non-positive `limit` /
+`windowSeconds` returns `400`:
 
 ```json
 { "error": "clientId is required" }
@@ -40,6 +41,17 @@ etc.), the request returns `503` rather than `400` — it's not the caller's fau
 ```json
 { "error": "Rate limiter is temporarily unavailable. Please try again." }
 ```
+
+### Concurrency validation
+
+```bash
+npm run test:concurrency
+# optional HTTP pass (server running):
+THROTTL_API_URL=http://localhost:8888 npm run test:concurrency
+```
+
+Fires 20 simultaneous checks per algorithm against shared Redis with `limit=5` and exits
+non-zero if any algorithm admits more than 5.
 
 ### `GET /uptime`
 
